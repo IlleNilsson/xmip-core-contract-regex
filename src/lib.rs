@@ -103,22 +103,22 @@ impl Contract for RegexContract {
         let text = match std::str::from_utf8(stream.bytes()) {
             Ok(text) => text,
             Err(error) => {
-                return Ok(result(vec![issue(
+                return Ok(ValidationResult::of(vec![ValidationIssue::at(
                     "malformed",
                     &format!("not UTF-8 text: {error}"),
-                    Some(format!("byte {}", error.valid_up_to())),
+                    &format!("byte {}", error.valid_up_to()),
                 )]));
             }
         };
         let Some((pattern, scope)) = &self.bound else {
-            return Ok(result(Vec::new()));
+            return Ok(ValidationResult::of(Vec::new()));
         };
         let issues = match scope {
             Scope::Whole => {
                 if pattern.is_match(text.trim_end_matches(['\r', '\n'])) {
                     Vec::new()
                 } else {
-                    vec![issue(
+                    vec![ValidationIssue::new(
                         "pattern",
                         "the text does not match the pattern",
                         None,
@@ -130,7 +130,7 @@ impl Contract for RegexContract {
                 .enumerate()
                 .filter(|(_, line)| !line.is_empty() && !pattern.is_match(line))
                 .map(|(offset, _)| {
-                    issue(
+                    ValidationIssue::new(
                         "pattern",
                         "the line does not match the pattern",
                         Some(format!("line {}", offset + 1)),
@@ -138,22 +138,7 @@ impl Contract for RegexContract {
                 })
                 .collect(),
         };
-        Ok(result(issues))
-    }
-}
-
-fn issue(code: &str, message: &str, path: Option<String>) -> ValidationIssue {
-    ValidationIssue {
-        code: code.to_string(),
-        message: message.to_string(),
-        path,
-    }
-}
-
-fn result(issues: Vec<ValidationIssue>) -> ValidationResult {
-    ValidationResult {
-        valid: issues.is_empty(),
-        issues,
+        Ok(ValidationResult::of(issues))
     }
 }
 
