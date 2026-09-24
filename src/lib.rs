@@ -15,11 +15,11 @@
 //! whole. The syntax is the `regex` crate's: finite automata, no backreferences,
 //! linear in the input, so an operator's pattern cannot stall a Location.
 
-use regex::Regex;
-use sdk::contract::{
+use contract::{
     Contract, ContractDescriptor, ContractError, ContractFactory, ContractId, ValidationIssue,
     ValidationResult,
 };
+use regex::Regex;
 use stream::Stream;
 
 /// How a bound pattern is applied.
