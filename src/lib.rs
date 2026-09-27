@@ -10,9 +10,9 @@
 //! A pattern binds in one of two scopes. **Whole**: the entire text must match
 //! the pattern, anchored at both ends. **Lines**: every non-empty line must
 //! match, anchored at both ends, and each departure names its line — the
-//! shape of a flat file whose every record has one form. The factory reads the
-//! scope off the reference: `lines:<pattern>` is per line, anything else is
-//! whole. The syntax is the `regex` crate's: finite automata, no backreferences,
+//! shape of a flat file whose every record has one form. A Location says which
+//! in its `scope` setting; the C boundary's `load` carries one string, so
+//! there `lines:<pattern>` is per line and anything else is whole. The syntax is the `regex` crate's: finite automata, no backreferences,
 //! linear in the input, so an operator's pattern cannot stall a Location.
 
 use contract::{
@@ -21,6 +21,7 @@ use contract::{
 };
 use regex::Regex;
 use stream::Stream;
+use xcore::settings::{Applies, Fixed, Kind, Presence, Read, Setting, Settings};
 
 /// How a bound pattern is applied.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,12 +144,30 @@ impl Contract for RegexContract {
 }
 
 /// Loads the contract a Location names: an empty reference is the bare
-/// contract, `lines:<pattern>` binds per line, anything else binds whole.
+/// contract, anything else the pattern, bound in the Location's `scope`.
+/// The C boundary's `load` carries one string, so there `lines:<pattern>`
+/// binds per line and anything else binds whole.
 pub struct RegexContractFactory;
 
 impl ContractFactory for RegexContractFactory {
     fn technology(&self) -> &'static str {
         "regex"
+    }
+
+    fn settings(&self) -> &'static Settings {
+        SETTINGS
+    }
+
+    fn configured(&self, settings: &Read) -> Result<Box<dyn Contract>, ContractError> {
+        let pattern = settings.optional_text("reference").unwrap_or("");
+        if pattern.trim().is_empty() {
+            return Ok(Box::new(RegexContract::new()));
+        }
+        let scope = match settings.text("scope") {
+            "lines" => Scope::Lines,
+            _ => Scope::Whole,
+        };
+        Ok(Box::new(RegexContract::with_pattern(pattern, scope)?))
     }
 
     fn load(&self, reference: &str) -> Result<Box<dyn Contract>, ContractError> {
@@ -162,6 +181,29 @@ impl ContractFactory for RegexContractFactory {
         Ok(Box::new(contract))
     }
 }
+
+/// What a Location gives this contract (ADR-0064, amendment 2026-09-26).
+const SETTINGS: &Settings = &Settings {
+    technology: env!("CARGO_PKG_NAME"),
+    settings: &[
+        Setting {
+            name: "reference",
+            kind: Kind::Text,
+            presence: Presence::Optional,
+            meaning: "The pattern the text matches; left out, any UTF-8 text holds.",
+            applies: Applies::Both,
+        },
+        Setting {
+            name: "scope",
+            kind: Kind::Choice {
+                choices: &["whole", "lines"],
+            },
+            presence: Presence::Default(Fixed::Text("whole")),
+            meaning: "Whether the whole text matches the pattern, or every non-empty line.",
+            applies: Applies::Both,
+        },
+    ],
+};
 
 #[cfg(test)]
 mod tests {
@@ -251,5 +293,32 @@ mod tests {
                 .valid
         );
         assert!(factory.load("(").is_err());
+    }
+
+    #[test]
+    fn regex_declares_its_settings_and_reads_through_them() {
+        use xcore::settings::Given;
+        assert!(SETTINGS.problems().is_empty(), "{:?}", SETTINGS.problems());
+        let given = |name: &str, value: &str| (name.to_string(), Given::Text(value.to_string()));
+        let factory = RegexContractFactory;
+        let lines = factory
+            .open(
+                Applies::Receive,
+                &[given("reference", "[A-Z]+"), given("scope", "lines")],
+            )
+            .expect("bound per line");
+        assert_eq!(lines.descriptor().id.0, "regex:lines:[A-Z]+");
+        let text = stream(b"AB\ncd\n");
+        assert_eq!(lines.validate(&text).expect("validates").issues.len(), 1);
+        let whole = factory
+            .open(Applies::Send, &[given("reference", "[A-Z]+")])
+            .expect("bound whole by default");
+        assert_eq!(whole.descriptor().id.0, "regex:[A-Z]+");
+        assert!(factory.open(Applies::Both, &[]).is_ok(), "bare");
+        let refused = factory
+            .open(Applies::Receive, &[given("scope", "rows")])
+            .err()
+            .expect("a scope that is not a choice is refused");
+        assert!(refused.message.contains("scope"), "{}", refused.message);
     }
 }
