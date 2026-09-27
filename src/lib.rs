@@ -97,17 +97,17 @@ impl Contract for RegexContract {
         // Text is the claim: any Stream that decodes is a candidate. A bound
         // pattern does not narrow identify — that is validate's job, and an
         // operator wants "does not match" reported, not silently unclaimed.
-        Ok(std::str::from_utf8(stream.bytes()).is_ok())
+        Ok(stream.text().is_ok())
     }
 
     fn validate(&self, stream: &Stream) -> Result<ValidationResult, ContractError> {
-        let text = match std::str::from_utf8(stream.bytes()) {
+        let text = match stream.text() {
             Ok(text) => text,
             Err(error) => {
                 return Ok(ValidationResult::of(vec![ValidationIssue::at(
                     "malformed",
-                    &format!("not UTF-8 text: {error}"),
-                    &format!("byte {}", error.valid_up_to()),
+                    format!("not UTF-8 text: {error}"),
+                    format!("byte {}", error.valid_up_to()),
                 )]));
             }
         };
