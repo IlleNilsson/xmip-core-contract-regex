@@ -97,11 +97,11 @@ impl Contract for RegexContract {
         // Text is the claim: any Stream that decodes is a candidate. A bound
         // pattern does not narrow identify — that is validate's job, and an
         // operator wants "does not match" reported, not silently unclaimed.
-        Ok(stream.text().is_ok())
+        Ok(contract::text(stream)?.is_ok())
     }
 
     fn validate(&self, stream: &Stream) -> Result<ValidationResult, ContractError> {
-        let text = match stream.text() {
+        let text = match contract::text(stream)? {
             Ok(text) => text,
             Err(error) => {
                 return Ok(ValidationResult::of(vec![ValidationIssue::at(
