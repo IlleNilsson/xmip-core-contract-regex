@@ -14,16 +14,30 @@
 //! in its `scope` setting; the C boundary's `load` carries one string, so
 //! there `lines:<pattern>` is per line and anything else is whole. The syntax is the `regex` crate's: finite automata, no backreferences,
 //! linear in the input, so an operator's pattern cannot stall a Location.
+//!
+//! **Built with its `declaration` feature alone** the crate is
+//! [`declaration`], what a Location naming it is configured with and the
+//! name a Validate step names it by, and none of the code above, which is
+//! behind the default feature: what the surfaces' library carries (ADR-0064,
+//! amendment 2026-11-26).
 
+#[cfg(feature = "declaration")]
+pub mod declaration;
+
+#[cfg(feature = "default")]
 use contract::{
     Contract, ContractDescriptor, ContractError, ContractFactory, ContractId, ValidationIssue,
     ValidationResult,
 };
+#[cfg(feature = "default")]
 use regex::Regex;
+#[cfg(feature = "default")]
 use stream::Stream;
-use xcore::settings::{Applies, Fixed, Kind, Presence, Read, Setting, Settings};
+#[cfg(feature = "default")]
+use xcore::settings::{Read, Settings};
 
 /// How a bound pattern is applied.
+#[cfg(feature = "default")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scope {
     /// The whole text matches, start to end.
@@ -33,11 +47,13 @@ pub enum Scope {
 }
 
 /// The regular-expression contract, bare or bound to a pattern.
+#[cfg(feature = "default")]
 pub struct RegexContract {
     descriptor: ContractDescriptor,
     bound: Option<(Regex, Scope)>,
 }
 
+#[cfg(feature = "default")]
 impl RegexContract {
     /// UTF-8 text only.
     #[must_use]
@@ -74,12 +90,14 @@ impl RegexContract {
     }
 }
 
+#[cfg(feature = "default")]
 impl Default for RegexContract {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "default")]
 fn descriptor(id: &str) -> ContractDescriptor {
     ContractDescriptor {
         id: ContractId(id.to_string()),
@@ -88,6 +106,7 @@ fn descriptor(id: &str) -> ContractDescriptor {
     }
 }
 
+#[cfg(feature = "default")]
 impl Contract for RegexContract {
     fn descriptor(&self) -> &ContractDescriptor {
         &self.descriptor
@@ -147,15 +166,17 @@ impl Contract for RegexContract {
 /// contract, anything else the pattern, bound in the Location's `scope`.
 /// The C boundary's `load` carries one string, so there `lines:<pattern>`
 /// binds per line and anything else binds whole.
+#[cfg(feature = "default")]
 pub struct RegexContractFactory;
 
+#[cfg(feature = "default")]
 impl ContractFactory for RegexContractFactory {
     fn technology(&self) -> &'static str {
-        "regex"
+        declaration::NAME
     }
 
     fn settings(&self) -> &'static Settings {
-        SETTINGS
+        declaration::SETTINGS
     }
 
     fn configured(&self, settings: &Read) -> Result<Box<dyn Contract>, ContractError> {
@@ -181,29 +202,6 @@ impl ContractFactory for RegexContractFactory {
         Ok(Box::new(contract))
     }
 }
-
-/// What a Location gives this contract (ADR-0064, amendment 2026-09-26).
-const SETTINGS: &Settings = &Settings {
-    technology: env!("CARGO_PKG_NAME"),
-    settings: &[
-        Setting {
-            name: "reference",
-            kind: Kind::Text,
-            presence: Presence::Optional,
-            meaning: "The pattern the text matches; left out, any UTF-8 text holds.",
-            applies: Applies::Both,
-        },
-        Setting {
-            name: "scope",
-            kind: Kind::Choice {
-                choices: &["whole", "lines"],
-            },
-            presence: Presence::Default(Fixed::Text("whole")),
-            meaning: "Whether the whole text matches the pattern, or every non-empty line.",
-            applies: Applies::Both,
-        },
-    ],
-};
 
 #[cfg(test)]
 mod tests {
@@ -297,7 +295,8 @@ mod tests {
 
     #[test]
     fn regex_declares_its_settings_and_reads_through_them() {
-        use xcore::settings::Given;
+        use declaration::SETTINGS;
+        use xcore::settings::{Applies, Given};
         assert!(SETTINGS.problems().is_empty(), "{:?}", SETTINGS.problems());
         let given = |name: &str, value: &str| (name.to_string(), Given::Text(value.to_string()));
         let factory = RegexContractFactory;
