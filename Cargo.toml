@@ -1,11 +1,11 @@
 [package]
 name = "xmip-core-contract-regex"
-version = "0.1.0"
-edition = "2024"
-license = "AGPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 repository = "https://github.com/IlleNilsson/xmip-core-contract-regex"
 description = "Regular-expression content contract: text always, matching a bound pattern when a Location names one, whole or line by line. A xmip-core-contract technology."
-publish = false
+publish.workspace = true
 
 [lib]
 path = "src/lib.rs"
@@ -30,13 +30,5 @@ default = ["declaration", "dep:contract", "dep:stream", "dep:regex"]
 # The declaration alone.
 declaration = []
 
-[lints.rust]
-unsafe_code = "forbid"
-
-[lints.clippy]
-too_many_lines = "warn"
-pedantic = { level = "warn", priority = -1 }
-missing_errors_doc = "warn"
-missing_panics_doc = "warn"
-unwrap_used = "warn"
-expect_used = "allow"
+[lints]
+workspace = true
